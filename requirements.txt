@@ -1,5 +1,5 @@
-Django>=4.3
-djangorestframework>=3.20
+Django>=4.2,<5.1
+djangorestframework==3.16.1
 gunicorn>=21.2
 openai>=1.0
 requests>=2.30
