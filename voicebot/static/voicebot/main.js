@@ -50,6 +50,25 @@ if (!SpeechRecognition) {
 startBtn.onclick = () => recognition && !recognizing && recognition.start();
 stopBtn.onclick = () => recognition && recognizing && recognition.stop();
 
+
+let selectedVoice = null;
+
+function loadVoices() {
+  const voices = speechSynthesis.getVoices();
+
+  // Prefer a consistent natural-sounding male voice
+  selectedVoice =
+    voices.find(v => v.name === "Google US English") ||
+    voices.find(v => v.name.includes("Google") && v.lang === "en-US") ||
+    voices.find(v => v.lang === "en-US") ||
+    voices[0];
+}
+
+// Voices load asynchronously in many browsers
+speechSynthesis.onvoiceschanged = loadVoices;
+loadVoices();
+
+
 // ----------------------------------------
 // SEND MESSAGE TO SERVER
 // ----------------------------------------
@@ -83,19 +102,16 @@ async function sendMessageToServer(text) {
 // TTS – Bot Speaks the Reply
 // ----------------------------------------
 function speakText(text) {
+  if (!selectedVoice) loadVoices();
+
   const utterance = new SpeechSynthesisUtterance(text);
-
-  // Choose a more natural voice if available
-  const voices = speechSynthesis.getVoices();
-  const naturalVoice =
-    voices.find(v => v.name.includes("Google") && v.lang === "en-US") ||
-    voices.find(v => v.lang === "en-US");
-
-  if (naturalVoice) utterance.voice = naturalVoice;
+  utterance.voice = selectedVoice;
 
   utterance.rate = 1.02;
   utterance.pitch = 1.0;
   utterance.volume = 1;
 
+  speechSynthesis.cancel(); // stop overlapping speech
   speechSynthesis.speak(utterance);
 }
+
