@@ -1,20 +1,15 @@
 from django.shortcuts import render
-
-# Create your views here.
-import google.generativeai as genai
-import os
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.shortcuts import render
 import json
 import logging
+import os
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel("gemini-2.5-flash-lite")
 logger = logging.getLogger(__name__)
 
 def index(request):
     return render(request, "index.html")
+
 
 @csrf_exempt
 def chat_api(request):
@@ -60,11 +55,22 @@ RULES:
 """
 
     try:
-        # Call the model safely
-        result = model.generate_content(system_instruction + "\nUser: " + user_message)
+        # ✅ IMPORT AND INIT INSIDE REQUEST
+        import google.generativeai as genai
+
+        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+        model = genai.GenerativeModel("gemini-2.5-flash-lite")
+
+        result = model.generate_content(
+            system_instruction + "\nUser: " + user_message
+        )
+
         reply = getattr(result, "text", "I’m sorry, I couldn’t process that.")
         return JsonResponse({"reply": reply})
 
-    except Exception as e:
-        logger.exception("Error in chat_api")  # Logs full traceback
-        return JsonResponse({"error": "Internal server error. Please try again later."}, status=500)
+    except Exception:
+        logger.exception("Error in chat_api")
+        return JsonResponse(
+            {"error": "Internal server error. Please try again later."},
+            status=500,
+        )
