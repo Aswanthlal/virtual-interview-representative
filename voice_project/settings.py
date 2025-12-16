@@ -27,7 +27,7 @@ SECRET_KEY = "django-insecure-lar&jgo*84k6x85zanv2tzpp+liti0!o4l&@)0yutb286hx9+z
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"]
 
 
 # Application definition
@@ -50,6 +50,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
 ]
 
 ROOT_URLCONF = "voice_project.urls"
@@ -117,7 +118,7 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
-
+STATIC_ROOT = BASE_DIR / "staticfiles"
 STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "voicebot" / "static"]
 
