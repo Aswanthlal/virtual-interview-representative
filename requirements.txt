@@ -5,3 +5,4 @@ openai>=1.0
 requests>=2.30
 django-cors-headers>=4.0
 python-dotenv>=1.0
+whitenoise>=6.6
