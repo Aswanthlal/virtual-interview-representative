@@ -57,16 +57,19 @@ async function sendMessageToServer(text) {
   replyDiv.textContent = "Thinking...";
 
   try {
-      const res = await fetch("{% url 'chat_api' %}", {
+    const res = await fetch("/chat_api/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: text }),
     });
 
+    if (!res.ok) {
+      throw new Error("Server error " + res.status);
+    }
+
     const data = await res.json();
 
     replyDiv.innerHTML += `<p><strong>Bot:</strong> ${data.reply}</p>`;
-
     speakText(data.reply);
 
   } catch (err) {
