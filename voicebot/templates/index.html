@@ -12,78 +12,153 @@
       padding: 0;
     }
 
-    .container {
-      max-width: 750px;
-      margin: 0 auto;
-      padding: 3rem 1rem;
-      text-align: center;
+    .app {
+      display: flex;
+      height: 100vh;
+      background: #f4f6fa;
     }
 
-    h1 {
-      font-size: 2.1rem;
-      font-weight: 700;
-      color: #1b1f3b;
+    /* Sidebar */
+    .sidebar {
+      width: 260px;
+      background: #1f2933;
+      color: white;
+      padding: 1.5rem;
     }
 
-    p {
-      color: #555;
-      font-size: 1.1rem;
-      margin-bottom: 2rem;
+    .sidebar h2 {
+      margin-bottom: .2rem;
     }
 
-    .card {
-      background: white;
-      padding: 2rem;
-      border-radius: 18px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
-      margin-top: 2rem;
-      text-align: left;
+    .subtitle {
+      font-size: .85rem;
+      opacity: .8;
+      margin-bottom: 1.5rem;
     }
 
-    button {
+    .sidebar button {
+      width: 100%;
       background: #4b7bec;
       color: white;
       border: none;
-      padding: 0.8rem 1.4rem;
+      padding: 0.8rem;
       border-radius: 10px;
-      font-size: 1.1rem;
+      font-size: 1rem;
       cursor: pointer;
-      margin: 0.5rem;
-      transition: background 0.2s ease;
     }
 
-    button:hover {
-      background: #3867d6;
+    .session-info {
+      margin-top: 1.5rem;
+      font-size: .85rem;
+      opacity: .9;
     }
 
-    button:disabled {
+    /* Main area */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .header {
+      background: white;
+      padding: 1rem 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #ddd;
+    }
+
+    .badge {
+      background: #e0e7ff;
+      padding: .3rem .6rem;
+      border-radius: 6px;
+      font-size: .8rem;
+    }
+
+    .chat-window {
+      flex: 1;
+      padding: 1.5rem;
+      overflow-y: auto;
+    }
+
+    .message {
+      max-width: 70%;
+      padding: .8rem 1rem;
+      border-radius: 14px;
+      margin-bottom: 1rem;
+      line-height: 1.4;
+    }
+
+    .message.bot {
+      background: #e5e7eb;
+    }
+
+    .message.user {
+      background: #4b7bec;
+      color: white;
+      margin-left: auto;
+    }
+
+    /* Controls */
+    .controls {
+      padding: 1rem;
+      background: white;
+      display: flex;
+      gap: .5rem;
+      align-items: center;
+    }
+
+    .controls button {
+      background: #4b7bec;
+      color: white;
+      border: none;
+      padding: 0.7rem 1rem;
+      border-radius: 10px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+
+    .controls button:disabled {
       background: #ccc;
     }
 
-    #transcript {
-      margin-top: 1.5rem;
-      font-size: 1.1rem;
-      color: #333;
+    .controls input {
+      flex: 1;
+      padding: 0.8rem 1rem;
+      font-size: 1rem;
+      border-radius: 10px;
+      border: 1px solid #ccc;
     }
 
-    #reply {
-      margin-top: 1rem;
-      font-size: 1.1rem;
-      color: #222;
-      line-height: 1.5;
-      padding: 1rem;
-      background: #f1f3f6;
-      border-left: 4px solid #4b7bec;
-      border-radius: 8px;
-      min-height: 50px;
+    .controls input:focus {
+      outline: none;
+      border-color: #4b7bec;
+      box-shadow: 0 0 0 2px rgba(75,123,236,0.15);
+
+    }
+    .message.system {
+      background: #fff7ed;
+      color: #92400e;
+      font-size: 0.85rem;
+      text-align: center;
+      border: 1px dashed #f59e0b;
     }
 
+    .history-item {
+      font-size: 0.9rem;
+      transition: background 0.2s;
+    }
+
+
+
+    /* Pulse */
     .pulse {
       width: 18px;
       height: 18px;
       background: #ff4757;
       border-radius: 50%;
-      margin: 0 auto;
+      margin: 0.5rem auto;
       animation: pulse 1s infinite;
       display: none;
     }
@@ -93,36 +168,72 @@
       50% { transform: scale(1.6); opacity: 0.4; }
       100% { transform: scale(1); opacity: 1; }
     }
-
   </style>
-
 </head>
 
 <body>
 
-  <div class="container">
-    <h1>🎙️ AI Voice Interview Assistant</h1>
-    <p>Press Start, ask your question, and the assistant will respond naturally with voice.</p>
+  <div class="app">
 
-    <div>
-      <button id="startBtn">Start Recording</button>
-      <button id="stopBtn" disabled>Stop</button>
-    </div>
-
-    <div class="pulse" id="pulseIndicator"></div>
-
-    <!-- <div class="card">
-      <div id="transcript"><em>Transcript will appear here...</em></div>
-      <div id="reply"></div>
-    </div> -->
-
-    <div class="card">
-      <div id="transcript"><em>Transcript will appear here...</em></div>
-      <div id="reply" style="display: block; margin-top: 1rem;"><em>Bot response will appear here...</em></div>
-    </div>
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <h2>Interview Bot</h2>
+      <p class="subtitle">Voice Interview Simulator</p>
     
+      <button id="newSessionBtn">+ New Interview</button>
+    
+      <div class="session-info">
+        <small>Session</small>
+        <div class="session-name">Current Interview</div>
+      </div>
+    
+      <!-- Move the history list here -->
+      <div id="historyList">
+        <h3>Previous Interviews</h3>
+      </div>
+    </aside>
+    
+
+    <!-- Main -->
+    <main class="main">
+
+      <header class="header">
+        <h1>🎙️ AI Voice Interview Assistant</h1>
+        <span class="badge">Interview Mode</span>
+      </header>
+
+      <div id="chatWindow" class="chat-window">
+        <div class="message bot">
+          Hi, I’m Aswanth. You can start by asking an interview question.
+        </div>
+      </div>
+
+      <div class="controls">
+        <button id="startBtn">🎤 Speak</button>
+        <input id="textInput" type="text" placeholder="Or type your question…" />
+        <button id="sendBtn">Send</button>
+        <button id="stopBtn" disabled>Stop</button>
+        <small style="opacity:.6">
+          Tip: Speak first, review the text, then press Send
+        </small>
+        
+      </div>
+      
+
+      <!-- <div id="historyList">
+        <h3>Previous Interviews</h3>
+      </div> -->
+      
+
+      <!-- <div class="pulse" id="pulseIndicator"></div> -->
+
+    </main>
+
   </div>
 
-  <script src="/static/voicebot/main.js"></script>
+  {% load static %}
+  <script src="{% static 'voicebot/main.js' %}"></script>
+
+
 </body>
 </html>
