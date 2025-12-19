@@ -209,26 +209,38 @@ let selectedVoice = null;
 
 function loadVoices() {
   const voices = speechSynthesis.getVoices();
+
+  if (!voices.length) return;
+
+  // Strong preference order
   selectedVoice =
-    voices.find(v => v.name === "Google US English") ||
+    voices.find(v => v.name.toLowerCase().includes("google us english")) ||
+    voices.find(v => v.name.toLowerCase().includes("male")) ||
+    voices.find(v => v.lang === "en-US" && !v.name.toLowerCase().includes("female")) ||
     voices.find(v => v.lang === "en-US") ||
     voices[0];
 }
 
-speechSynthesis.onvoiceschanged = loadVoices;
-loadVoices();
+
+speechSynthesis.onvoiceschanged = () => {
+  loadVoices();
+};
+
 
 function speakText(text) {
   if (!selectedVoice) loadVoices();
 
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.voice = selectedVoice;
-  utterance.rate = 1.02;
-  utterance.pitch = 1.0;
+
+  // Calm, confident interview tone
+  utterance.rate = 0.95;
+  utterance.pitch = 0.85;
   utterance.volume = 1;
 
   speechSynthesis.cancel();
   speechSynthesis.speak(utterance);
 }
+
 
 });
