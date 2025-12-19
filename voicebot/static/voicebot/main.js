@@ -209,17 +209,22 @@ let selectedVoice = null;
 
 function loadVoices() {
   const voices = speechSynthesis.getVoices();
-
   if (!voices.length) return;
 
-  // Strong preference order
+  const maleKeywords = ["david", "mark", "alex", "male"];
+
   selectedVoice =
-    voices.find(v => v.name.toLowerCase().includes("google us english")) ||
-    voices.find(v => v.name.toLowerCase().includes("male")) ||
-    voices.find(v => v.lang === "en-US" && !v.name.toLowerCase().includes("female")) ||
+    // 1️⃣ Explicit known male voices
+    voices.find(v =>
+      v.lang === "en-US" &&
+      maleKeywords.some(k => v.name.toLowerCase().includes(k))
+    ) ||
+    // 2️⃣ Any en-US voice as fallback
     voices.find(v => v.lang === "en-US") ||
+    // 3️⃣ Absolute fallback
     voices[0];
 }
+
 
 
 speechSynthesis.onvoiceschanged = () => {
@@ -234,8 +239,8 @@ function speakText(text) {
   utterance.voice = selectedVoice;
 
   // Calm, confident interview tone
-  utterance.rate = 0.95;
-  utterance.pitch = 0.85;
+  utterance.rate = 0.97;
+  utterance.pitch = 0.8;
   utterance.volume = 1;
 
   speechSynthesis.cancel();
