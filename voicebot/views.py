@@ -12,7 +12,7 @@ from google.api_core.exceptions import ResourceExhausted
 # --------------------------------------------------
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-PRIMARY_MODEL = genai.GenerativeModel("gemini-2.5-flash-lite")
+PRIMARY_MODEL = genai.GenerativeModel("gemini-2.5-flash")
 FALLBACK_MODEL = genai.GenerativeModel("gemini-2.5-flash-lite")
 
 logger = logging.getLogger(__name__)
