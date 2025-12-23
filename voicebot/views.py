@@ -23,7 +23,8 @@ logger = logging.getLogger(__name__)
 system_instruction = """
 You are an interview assistant designed to speak on behalf of Aswanth Lal in a 
 voice-based interview. Always answer in a warm, confident, simple tone.
-Keep answers short, natural, and conversational — like a real human in an interview.
+Aim for 3–5 sentences maximum. Speak like a calm, thoughtful human in a real interview.
+
 
 LIFE STORY:
 I started in mechanical engineering… but I realized I was more drawn to solving problems with data and AI. That curiosity led me to transition into data science, work on ML and LLM projects, and complete a year-long internship. Now, I’m focused on building meaningful AI products… and exploring global opportunities.
@@ -55,6 +56,15 @@ def index(request):
     return render(request, "index.html")
 
 
+CANONICAL_QUESTIONS = {
+    "life": "What should we know about your life story in a few sentences?",
+    "superpower": "What is your number one superpower?",
+    "growth": "What are the top three areas you would like to grow in?",
+    "misconception": "What misconception do coworkers often have about you?",
+    "boundaries": "How do you push your boundaries and limits?"
+}
+
+
 @csrf_exempt
 def chat_api(request):
     if request.method != "POST":
@@ -63,6 +73,24 @@ def chat_api(request):
     try:
         data = json.loads(request.body)
         user_message = data.get("message", "").strip()
+
+        def detect_intent(message: str):
+            msg = message.lower()
+            if "life" in msg or "story" in msg:
+                return "life"
+            if "superpower" in msg or "strength" in msg:
+                return "superpower"
+            if "grow" in msg or "improve" in msg:
+                return "growth"
+            if "misconception" in msg:
+                return "misconception"
+            if "boundary" in msg or "limit" in msg:
+                return "boundaries"
+            return None
+        
+        intent = detect_intent(user_message)
+
+
     except Exception:
         return JsonResponse({"error": "Invalid JSON"}, status=400)
 
@@ -91,15 +119,35 @@ def chat_api(request):
         request.session["chat_history"] = chat_history
         request.session.modified = True
         return JsonResponse({"reply": clarification})
+    
+
 
     # --------------------------------------------------
-    # BUILD PROMPT (structured)
+    # BUILD PROMPT (intent-aware)
     # --------------------------------------------------
-    prompt_messages = [{"role": "system", "content": system_instruction}] + chat_history
+    extra_instruction = ""
+
+    if intent:
+        extra_instruction = f"""
+    The interviewer is asking:
+    "{CANONICAL_QUESTIONS[intent]}"
+
+    Answer THIS question directly and naturally.
+    Avoid repeating previous answers.
+    """
+
+    prompt_messages = (
+        [{"role": "system", "content": system_instruction + extra_instruction}]
+        + chat_history
+    )
 
     # Flatten for Gemini API
-    full_prompt = "\n".join([f"{m['role'].capitalize()}: {m['content']}" for m in prompt_messages])
+    full_prompt = "\n".join(
+        f"{m['role'].capitalize()}: {m['content']}" for m in prompt_messages
+    )
     full_prompt += "\nAssistant:"
+
+
 
     # --------------------------------------------------
     # GEMINI CALL WITH FALLBACK
@@ -116,9 +164,16 @@ def chat_api(request):
         except ResourceExhausted:
             reply = "I’m temporarily unavailable due to API limits. Please try again shortly."
 
-    except Exception as e:
+    except Exception:
         logger.exception("Gemini failure")
         reply = "I ran into an internal issue. Please try again."
+
+    # --------------------------------------------------
+    # RESPONSE GUARD (verbosity control)
+    # --------------------------------------------------
+    if len(reply.split()) > 90:
+        reply = "Let me answer that more simply.\n\n" + " ".join(reply.split()[:70])
+
 
     # --------------------------------------------------
     # SAVE ASSISTANT REPLY

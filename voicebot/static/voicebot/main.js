@@ -13,22 +13,40 @@ let recognition;
 let recognizing = false;
 let conversations = [];
 let currentConversation = [];
+let currentConversationId = null;
+let currentAbortController = null;
+let isReplying = false;
+let responseToken = 0;
+let activeUtterance = null;
+let isViewingHistory = false;
+
+
 
 
 // ----------------------------------------
 // CHAT UI
 // ----------------------------------------
-function addMessage(text, sender) {
+function addMessage(text, sender, temporary = false, skipState = false) {
   const div = document.createElement("div");
   div.className = `message ${sender}`;
   div.textContent = text;
 
+  if (temporary) {
+    div.dataset.temporary = "true";
+  }
+
   chatWindow.appendChild(div);
   chatWindow.scrollTop = chatWindow.scrollHeight;
 
-  //  Track message
-  currentConversation.push({ sender, text });
+  // ✅ Only push if NOT rendering history
+  if (!skipState && sender !== "system") {
+    currentConversation.push({ sender, text });
+  }
+
+  return div;
 }
+
+
 
 
 // ----------------------------------------
@@ -44,11 +62,9 @@ if (SpeechRecognition) {
   recognition.maxAlternatives = 1;
 
   recognition.onstart = () => {
-    recognizing = true;
-    startBtn.disabled = true;
-    stopBtn.disabled = false;
     if (pulse) pulse.style.display = "block";
   };
+  
   
 
   recognition.onresult = (event) => {
@@ -59,6 +75,7 @@ if (SpeechRecognition) {
   
     // Optional: focus input so user can edit immediately
     textInput.focus();
+    addMessage("✍️ Review the text and press Send when ready.", "system", true);
   };
   
 
@@ -78,13 +95,76 @@ if (SpeechRecognition) {
   addMessage("Your browser does not support voice input.", "bot");
 }
 
-startBtn.onclick = () => recognition && !recognizing && recognition.start();
-stopBtn.onclick = () => recognition && recognizing && recognition.stop();
+startBtn.onclick = () => {
+  if (!recognition || recognizing) return;
+
+  recognizing = true;
+  startBtn.disabled = true;
+  stopBtn.disabled = false;
+
+  addMessage("🎙️ Listening… speak naturally.", "system", true);
+
+  recognition.start();
+};
+
+stopBtn.onclick = () => {
+  // Invalidate ALL responses
+  responseToken++;
+
+  // Kill mic
+  if (recognition) {
+    try { recognition.abort(); } catch {}
+  }
+
+  // HARD STOP speech
+  if (activeUtterance) {
+    activeUtterance.onend = null;
+    activeUtterance.onerror = null;
+    activeUtterance = null;
+  }
+  speechSynthesis.cancel();
+
+  // Abort fetch
+  if (currentAbortController) {
+    currentAbortController.abort();
+    currentAbortController = null;
+  }
+
+  recognizing = false;
+  isReplying = false;
+
+  stopBtn.disabled = true;
+  startBtn.disabled = false;
+
+  clearTemporarySystemMessages();
+  addMessage("⏹️ Interaction stopped.", "system", true);
+};
+
+
+
+
+
 
 // ----------------------------------------
 // SEND MESSAGE TO SERVER
 // ----------------------------------------
 async function sendMessageToServer(text) {
+  // Invalidate any previous response
+  responseToken++;
+
+  // Abort previous fetch
+  if (currentAbortController) {
+    currentAbortController.abort();
+  }
+
+  currentAbortController = new AbortController();
+  const myToken = responseToken;
+
+  // Mark replying state
+  isReplying = true;
+  // stopBtn.disabled = false;
+  // startBtn.disabled = true;
+
   const thinking = document.createElement("div");
   thinking.className = "message bot system";
   thinking.textContent = "Typing...";
@@ -96,22 +176,49 @@ async function sendMessageToServer(text) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: text }),
+      signal: currentAbortController.signal
     });
 
     const data = await res.json();
     const reply = data.reply || data.error || "No response from server.";
 
     setTimeout(() => {
+      if (responseToken !== myToken) {
+        thinking.remove();
+        return;
+      }
+    
       thinking.remove();
+      clearTemporarySystemMessages();
       addMessage(reply, "bot");
-      speakText(reply);
+    
+      // Speak only if still valid
+      if (responseToken === myToken) {
+        speakText(reply);
+      }
+    
+      isReplying = false;
+      // stopBtn.disabled = true;
+      // startBtn.disabled = false;
     }, 400);
 
   } catch (err) {
     thinking.remove();
+    clearTemporarySystemMessages();
+
+    isReplying = false;
+    stopBtn.disabled = true;
+    startBtn.disabled = false;
+
+    if (err.name === "AbortError") {
+      return;
+    }
+
     addMessage("Sorry, something went wrong.", "bot");
   }
 }
+
+
 
 
 // ----------------------------------------
@@ -119,10 +226,16 @@ async function sendMessageToServer(text) {
 // ----------------------------------------
 sendBtn.onclick = () => {
   const text = textInput.value.trim();
+  if (isReplying) return;
+
   if (!text) return;
 
   addMessage(text, "user");
+  isViewingHistory = false; //  user is now in a fresh session
+  updateCurrentSessionStatus();
   textInput.value = "";
+  clearTemporarySystemMessages();
+
   sendMessageToServer(text);
 };
 
@@ -131,74 +244,125 @@ textInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") sendBtn.click();
 });
 
+//
+
+function clearTemporarySystemMessages() {
+  const tempMessages = document.querySelectorAll(
+    '.message.system[data-temporary="true"]'
+  );
+  tempMessages.forEach(msg => msg.remove());
+}
+//
+
 // ----------------------------------------
 // NEW SESSION
 // ----------------------------------------
 newSessionBtn.onclick = async () => {
-  if (currentConversation.length > 0) {
-    conversations.push([...currentConversation]);
+  // ✅ Save ONLY if this is a REAL new session
+  const hasUserMessage =
+    !isViewingHistory &&
+    currentConversation.some(msg => msg.sender === "user");
+
+  if (hasUserMessage) {
+    conversations.push({
+      id: conversations.length + 1,
+      messages: JSON.parse(JSON.stringify(currentConversation))
+    });
+    renderHistory();
   }
 
-  chatWindow.innerHTML = `
-    <div class="message bot system">
-      🔄 New interview started — previous context cleared.
-    </div>
-    <div class="message bot">
-      Hi, I’m Aswanth. You can start by asking an interview question.
-    </div>
-  `;
-
+  // Reset everything
+  chatWindow.innerHTML = "";
   currentConversation = [];
+  currentConversationId = null;
+  isViewingHistory = false; // ✅ reset
+
+  addMessage(
+    "🔄 New interview started.\nYou can freely ask interview questions, or say “start structured interview” to begin a guided round.",
+    "system",
+    true
+  );
+
+  addMessage(
+    "Hi, I’m Aswanth. You can start by asking an interview question.",
+    "bot"
+  );
 
   await fetch("/api/reset-session/", { method: "POST" });
   speechSynthesis.cancel();
-
-  renderHistory(); // now works
 };
+
+
+
+function updateCurrentSessionStatus() {
+  const el = document.getElementById("currentSessionStatus");
+  if (!el) return;
+
+  if (isViewingHistory) {
+    el.textContent = "Viewing previous interview (read-only)";
+    return;
+  }
+
+  const userCount = currentConversation.filter(
+    m => m.sender === "user"
+  ).length;
+
+  el.textContent =
+    userCount === 0
+      ? "New interview (no messages yet)"
+      : `${userCount} message${userCount > 1 ? "s" : ""} in this interview`;
+}
+
+
+
+function loadConversationById(id) {
+  const interview = conversations.find(c => c.id === id);
+  if (!interview) return;
+
+  chatWindow.innerHTML = "";
+  currentConversation = [...interview.messages];
+  currentConversationId = id;
+
+  isViewingHistory = true; // ✅ IMPORTANT
+
+  currentConversation.forEach(msg => {
+    addMessage(msg.text, msg.sender, false, true);
+  });
+}
+
+
 
 
 function renderHistory() {
   const historyList = document.getElementById("historyList");
   if (!historyList) return;
+
   historyList.innerHTML = "<h3>Previous Interviews</h3>";
 
-  conversations.forEach((conv, index) => {
+  // newest first
+  [...conversations].reverse().forEach(interview => {
     const item = document.createElement("div");
     item.className = "history-item";
-    item.textContent = `Interview ${index + 1}`;
+    item.textContent = `Interview ${interview.id}`;
+
     item.style.cursor = "pointer";
     item.style.padding = "0.4rem 0.6rem";
     item.style.borderRadius = "6px";
     item.style.marginBottom = "0.3rem";
 
-    // Highlight currently loaded interview
-    if (currentConversation === conv) {
+    if (currentConversationId === interview.id) {
       item.style.background = "rgba(255,255,255,0.2)";
-    } else {
-      item.style.background = "transparent";
     }
 
-    item.onmouseover = () => (item.style.background = "rgba(255,255,255,0.15)");
-    item.onmouseout = () => {
-      item.style.background = currentConversation === conv ? "rgba(255,255,255,0.2)" : "transparent";
-    };
+    item.onclick = () => loadConversationById(interview.id);
+    updateCurrentSessionStatus();
 
-    item.onclick = () => loadConversation(index);
     historyList.appendChild(item);
   });
-  historyList.scrollTop = historyList.scrollHeight;
-
 }
 
 
-function loadConversation(index) {
-  chatWindow.innerHTML = ""; // clear current UI
-  currentConversation = [...conversations[index]];
 
-  currentConversation.forEach(msg => {
-    addMessage(msg.text, msg.sender);
-  });
-}
 
 
 
@@ -235,17 +399,43 @@ speechSynthesis.onvoiceschanged = () => {
 function speakText(text) {
   if (!selectedVoice) loadVoices();
 
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.voice = selectedVoice;
+  // Cancel anything already speaking
+  speechSynthesis.cancel();
+  activeUtterance = null;
 
-  // Calm, confident interview tone
+  const utterance = new SpeechSynthesisUtterance(text);
+  activeUtterance = utterance;
+
+  utterance.voice = selectedVoice;
   utterance.rate = 0.97;
   utterance.pitch = 0.8;
   utterance.volume = 1;
 
-  speechSynthesis.cancel();
+  // 🔓 Stop MUST be enabled during speech
+  stopBtn.disabled = false;
+  startBtn.disabled = true;
+
+  addMessage("🗣️ Responding as Aswanth…", "system", true);
+
+  utterance.onstart = () => {
+    stopBtn.disabled = false;
+  };
+
+  utterance.onend = () => {
+    activeUtterance = null;
+    stopBtn.disabled = true;
+    startBtn.disabled = false;
+    clearTemporarySystemMessages();
+  };
+
+  utterance.onerror = () => {
+    activeUtterance = null;
+    stopBtn.disabled = true;
+    startBtn.disabled = false;
+    clearTemporarySystemMessages();
+  };
+
   speechSynthesis.speak(utterance);
 }
-
 
 });

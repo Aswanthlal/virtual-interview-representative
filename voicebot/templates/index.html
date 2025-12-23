@@ -149,7 +149,19 @@
       font-size: 0.9rem;
       transition: background 0.2s;
     }
+    
+    .message.system[data-temporary="true"] {
+      opacity: 0.6;
+      transition: opacity 0.3s ease;
+    }
 
+    .session-box {
+      padding: 0.6rem;
+      margin-bottom: 0.8rem;
+      background: rgba(255,255,255,0.08);
+      border-radius: 8px;
+      font-size: 0.9rem;
+    }
 
 
     /* Pulse */
@@ -188,6 +200,13 @@
       </div> -->
     
       <!-- Move the history list here -->
+
+      <div id="currentSession" class="session-box">
+        <h3>Current Session</h3>
+        <div id="currentSessionStatus">No active conversation</div>
+      </div>
+      
+      
       <div id="historyList">
         <h3>Previous Interviews</h3>
       </div>
@@ -199,18 +218,21 @@
 
       <header class="header">
         <h1>🎙️ AI Voice Interview Assistant</h1>
-        <span class="badge">Interview Mode</span>
+        <span class="badge">Voice Interview Simulation</span>
       </header>
 
       <div id="chatWindow" class="chat-window">
         <div class="message bot">
-          Hi, I’m Aswanth. You can start by asking an interview question.
+            Welcome!  
+            I’m Aswanth’s AI interview representative.  
+            You can ask common interview questions, or <br>click <b>New Interview</b> to begin a New voice interview.
         </div>
+        
       </div>
 
       <div class="controls">
         <button id="startBtn">🎤 Speak</button>
-        <input id="textInput" type="text" placeholder="Or type your question…" />
+        <input id="textInput" type="text" placeholder="Ask an interview question or respond by voice…        " />
         <button id="sendBtn">Send</button>
         <button id="stopBtn" disabled>Stop</button>
         <small style="opacity:.6">
