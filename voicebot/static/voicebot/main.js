@@ -19,6 +19,10 @@ let isReplying = false;
 let responseToken = 0;
 let activeUtterance = null;
 let isViewingHistory = false;
+let viewingCurrentInterview = true;
+let draftConversation = [];
+
+
 
 
 
@@ -26,7 +30,7 @@ let isViewingHistory = false;
 // ----------------------------------------
 // CHAT UI
 // ----------------------------------------
-function addMessage(text, sender, temporary = false, skipState = false) {
+function addMessage(text, sender, temporary = false, renderOnly = false) {
   const div = document.createElement("div");
   div.className = `message ${sender}`;
   div.textContent = text;
@@ -38,9 +42,13 @@ function addMessage(text, sender, temporary = false, skipState = false) {
   chatWindow.appendChild(div);
   chatWindow.scrollTop = chatWindow.scrollHeight;
 
-  // ✅ Only push if NOT rendering history
-  if (!skipState && sender !== "system") {
-    currentConversation.push({ sender, text });
+  // // ✅ Only push if NOT rendering history
+  // if (!skipState && sender !== "system") {
+  //   currentConversation.push({ sender, text });
+  // }
+
+  if (!temporary && !renderOnly && viewingCurrentInterview) {
+    draftConversation.push({ sender, text });
   }
 
   return div;
@@ -226,18 +234,20 @@ async function sendMessageToServer(text) {
 // ----------------------------------------
 sendBtn.onclick = () => {
   const text = textInput.value.trim();
-  if (isReplying) return;
+  if (!text || isReplying) return;
 
-  if (!text) return;
+  // 🔥 MUST come BEFORE addMessage
+  viewingCurrentInterview = true;
+  isViewingHistory = false;
 
   addMessage(text, "user");
-  isViewingHistory = false; //  user is now in a fresh session
   updateCurrentSessionStatus();
   textInput.value = "";
   clearTemporarySystemMessages();
 
   sendMessageToServer(text);
 };
+
 
 // Enter key support
 textInput.addEventListener("keydown", (e) => {
@@ -258,24 +268,26 @@ function clearTemporarySystemMessages() {
 // NEW SESSION
 // ----------------------------------------
 newSessionBtn.onclick = async () => {
-  // ✅ Save ONLY if this is a REAL new session
-  const hasUserMessage =
-    !isViewingHistory &&
-    currentConversation.some(msg => msg.sender === "user");
+  // ✅ Save ONLY if user actually spoke
+  const hasUserMessage = draftConversation.some(
+    msg => msg.sender === "user"
+  );
 
   if (hasUserMessage) {
     conversations.push({
       id: conversations.length + 1,
-      messages: JSON.parse(JSON.stringify(currentConversation))
+      messages: [...draftConversation]
     });
-    renderHistory();
   }
 
-  // Reset everything
+  // 🔥 IMPORTANT: clear draft BEFORE doing anything else
+  draftConversation = [];
+  viewingCurrentInterview = true;
+  isViewingHistory = false;
+
+  renderHistory();
+
   chatWindow.innerHTML = "";
-  currentConversation = [];
-  currentConversationId = null;
-  isViewingHistory = false; // ✅ reset
 
   addMessage(
     "🔄 New interview started.\nYou can freely ask interview questions, or say “start structured interview” to begin a guided round.",
@@ -294,6 +306,7 @@ newSessionBtn.onclick = async () => {
 
 
 
+
 function updateCurrentSessionStatus() {
   const el = document.getElementById("currentSessionStatus");
   if (!el) return;
@@ -303,7 +316,7 @@ function updateCurrentSessionStatus() {
     return;
   }
 
-  const userCount = currentConversation.filter(
+  const userCount = draftConversation.filter(
     m => m.sender === "user"
   ).length;
 
@@ -315,9 +328,13 @@ function updateCurrentSessionStatus() {
 
 
 
+
 function loadConversationById(id) {
   const interview = conversations.find(c => c.id === id);
   if (!interview) return;
+
+  isViewingHistory = true;
+  viewingCurrentInterview = false;
 
   chatWindow.innerHTML = "";
   currentConversation = [...interview.messages];
@@ -328,9 +345,22 @@ function loadConversationById(id) {
   currentConversation.forEach(msg => {
     addMessage(msg.text, msg.sender, false, true);
   });
+  
 }
 
 
+function loadCurrentInterview() {
+  viewingCurrentInterview = true;
+  isViewingHistory = false;
+
+  chatWindow.innerHTML = "";
+
+  draftConversation.forEach(msg => {
+    addMessage(msg.text, msg.sender, false, true); // renderOnly
+  });
+
+  updateCurrentSessionStatus();
+}
 
 
 function renderHistory() {
@@ -339,8 +369,46 @@ function renderHistory() {
 
   historyList.innerHTML = "<h3>Previous Interviews</h3>";
 
-  // newest first
+  // 🔹 Show CURRENT interview (if it has messages)
+  const hasUserMessage = draftConversation.some(
+    msg => msg.sender === "user"
+  );
+
+  if (hasUserMessage) {
+    const currentItem = document.createElement("div");
+    currentItem.className = "history-item";
+    currentItem.textContent = "▶ Current Interview";
+
+    currentItem.style.cursor = "pointer";
+    currentItem.style.padding = "0.4rem 0.6rem";
+    currentItem.style.borderRadius = "6px";
+    currentItem.style.marginBottom = "0.6rem";
+    currentItem.style.fontWeight = "600";
+    currentItem.style.background =
+      viewingCurrentInterview ? "rgba(255,255,255,0.25)" : "transparent";
+
+    currentItem.onclick = () => {
+      viewingCurrentInterview = true;
+      loadCurrentInterview();
+      renderHistory();
+    };
+
+    historyList.appendChild(currentItem);
+  }
+
+  // 🔹 Divider
+  if (conversations.length > 0) {
+    const divider = document.createElement("div");
+    divider.style.height = "1px";
+    divider.style.background = "rgba(255,255,255,0.2)";
+    divider.style.margin = "0.4rem 0";
+    historyList.appendChild(divider);
+  }
+
+  // 🔹 Render SAVED interviews (newest first)
   [...conversations].reverse().forEach(interview => {
+    if (!interview || !Array.isArray(interview.messages)) return;
+
     const item = document.createElement("div");
     item.className = "history-item";
     item.textContent = `Interview ${interview.id}`;
@@ -350,16 +418,20 @@ function renderHistory() {
     item.style.borderRadius = "6px";
     item.style.marginBottom = "0.3rem";
 
-    if (currentConversationId === interview.id) {
+    if (!viewingCurrentInterview && currentConversationId === interview.id) {
       item.style.background = "rgba(255,255,255,0.2)";
     }
 
-    item.onclick = () => loadConversationById(interview.id);
-    updateCurrentSessionStatus();
+    item.onclick = () => {
+      viewingCurrentInterview = false;
+      loadConversationById(interview.id);
+      renderHistory();
+    };
 
     historyList.appendChild(item);
   });
 }
+
 
 
 
